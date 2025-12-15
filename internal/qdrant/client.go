@@ -2,15 +2,35 @@ package qdrant
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+
+	qdrant "github.com/qdrant/go-client/qdrant"
 )
 
 type Client struct {
-	URL        string
-	Collection string
+	URL          string
+	Collection   string
+	QdrantClient *qdrant.Client
+}
+
+func NewQdrantClient(qurl, col string) (*Client, error) {
+	qclient, err := qdrant.NewClient(&qdrant.Config{
+		Host: "localhost",
+		Port: 6334,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &Client{
+		URL:          qurl,
+		Collection:   col,
+		QdrantClient: qclient,
+	}, nil
 }
 
 func (c *Client) Search(vec []float32, limit int) ([]map[string]any, error) {
@@ -37,30 +57,6 @@ func (c *Client) Search(vec []float32, limit int) ([]map[string]any, error) {
 	}
 	err = json.NewDecoder(resp.Body).Decode(&out)
 	return out.Result, err
-}
-
-func (c *Client) Upsert(id string, vec []float32, payload map[string]any) error {
-	body := map[string]any{
-		"points": []map[string]any{
-			{
-				"id":      id,
-				"vector":  vec,
-				"payload": payload,
-			},
-		},
-	}
-
-	b, _ := json.Marshal(body)
-	resp, err := http.Post(
-		fmt.Sprintf("%s/collections/%s/points", c.URL, c.Collection),
-		"application/json",
-		bytes.NewReader(b),
-	)
-	if err != nil {
-		return err
-	}
-	resp.Body.Close()
-	return nil
 }
 
 func (c *Client) SearchWithFilter(
@@ -102,3 +98,45 @@ filter := map[string]any{
 	},
 }
 */
+
+func (c *Client) Upsert(
+	ctx context.Context,
+	id string,
+	vec []float32,
+	payload map[string]any,
+) error {
+
+	// Convert payload: map[string]any → map[string]*qdrant.Value
+	qPayload := make(map[string]*qdrant.Value, len(payload))
+	for k, v := range payload {
+		switch t := v.(type) {
+		case string:
+			qPayload[k] = qdrant.NewValueString(t)
+		case int:
+			qPayload[k] = qdrant.NewValueInt(int64(t))
+		case int64:
+			qPayload[k] = qdrant.NewValueInt(t)
+		case float64:
+			qPayload[k] = qdrant.NewValueDouble(t)
+		case bool:
+			qPayload[k] = qdrant.NewValueBool(t)
+		default:
+			return fmt.Errorf("unsupported payload type for key %q: %T", k, v)
+		}
+	}
+
+	point := &qdrant.PointStruct{
+		Id:      qdrant.NewIDUUID(id),
+		Vectors: qdrant.NewVectors(vec...),
+		Payload: qPayload,
+	}
+
+	wait := true
+	_, err := c.QdrantClient.Upsert(ctx, &qdrant.UpsertPoints{
+		CollectionName: c.Collection,
+		Points:         []*qdrant.PointStruct{point},
+		Wait:           &wait,
+	})
+
+	return err
+}
