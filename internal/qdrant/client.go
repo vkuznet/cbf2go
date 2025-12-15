@@ -1,12 +1,8 @@
 package qdrant
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"log"
-	"net/http"
 
 	qdrant "github.com/qdrant/go-client/qdrant"
 )
@@ -33,30 +29,94 @@ func NewQdrantClient(qurl, col string) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) Search(vec []float32, limit int) ([]map[string]any, error) {
-	body := map[string]any{
-		"vector": vec,
-		"limit":  limit,
+func payloadToMap(p map[string]*qdrant.Value) map[string]any {
+	out := make(map[string]any, len(p))
+	for k, v := range p {
+		switch x := v.Kind.(type) {
+		case *qdrant.Value_StringValue:
+			out[k] = x.StringValue
+		case *qdrant.Value_IntegerValue:
+			out[k] = x.IntegerValue
+		case *qdrant.Value_DoubleValue:
+			out[k] = x.DoubleValue
+		case *qdrant.Value_BoolValue:
+			out[k] = x.BoolValue
+		default:
+			out[k] = nil
+		}
+	}
+	return out
+}
+
+func buildQdrantFilter(filter map[string]any) (*qdrant.Filter, error) {
+	mustRaw, ok := filter["must"].([]map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("only 'must' filters are supported")
 	}
 
-	b, _ := json.Marshal(body)
-	rurl := fmt.Sprintf("%s/collections/%s/points/search", c.URL, c.Collection)
-	log.Println("search", rurl)
-	resp, err := http.Post(
-		rurl,
-		"application/json",
-		bytes.NewReader(b),
-	)
+	var must []*qdrant.Condition
+
+	for _, f := range mustRaw {
+		key := f["key"].(string)
+
+		if match, ok := f["match"].(map[string]any); ok {
+			must = append(must,
+				qdrant.NewMatchKeyword(key, fmt.Sprint(match["value"])),
+			)
+			continue
+		}
+
+		if rng, ok := f["range"].(map[string]any); ok {
+			r := &qdrant.Range{}
+			if gte, ok := rng["gte"]; ok {
+				switch v := gte.(type) {
+				case float64:
+					r.Gte = &v
+				}
+			}
+			if lte, ok := rng["lte"]; ok {
+				switch v := lte.(type) {
+				case float64:
+					r.Lte = &v
+				}
+			}
+			// TODO: I need to add my range to condition
+			cond := &qdrant.Condition{}
+			must = append(must, cond)
+			continue
+		}
+
+		return nil, fmt.Errorf("unsupported filter condition: %v", f)
+	}
+
+	return &qdrant.Filter{Must: must}, nil
+}
+
+func (c *Client) Search(vec []float32, limit int) ([]map[string]any, error) {
+	ctx := context.Background()
+	pointsClient := c.QdrantClient.GetPointsClient()
+
+	lim := uint64(limit)
+	resp, err := pointsClient.Search(ctx, &qdrant.SearchPoints{
+		CollectionName: c.Collection,
+		Vector:         vec,
+		Limit:          lim,
+		WithPayload:    qdrant.NewWithPayload(true),
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	res := resp.GetResult()
 
-	var out struct {
-		Result []map[string]any `json:"result"`
+	out := make([]map[string]any, 0, len(res))
+	for _, p := range res {
+		rec := payloadToMap(p.Payload)
+		rec["_score"] = p.Score
+		rec["_id"] = p.Id.GetUuid()
+		out = append(out, rec)
 	}
-	err = json.NewDecoder(resp.Body).Decode(&out)
-	return out.Result, err
+
+	return out, nil
 }
 
 func (c *Client) SearchWithFilter(
@@ -65,39 +125,38 @@ func (c *Client) SearchWithFilter(
 	filter map[string]any,
 ) ([]map[string]any, error) {
 
-	body := map[string]any{
-		"vector": vec,
-		"limit":  limit,
-		"filter": filter,
+	ctx := context.Background()
+	pointsClient := c.QdrantClient.GetPointsClient()
+
+	qfilter, err := buildQdrantFilter(filter)
+	if err != nil {
+		return nil, err
 	}
 
-	b, _ := json.Marshal(body)
-	resp, err := http.Post(
-		fmt.Sprintf("%s/collections/%s/points/search", c.URL, c.Collection),
-		"application/json",
-		bytes.NewReader(b),
-	)
-	fmt.Println("### response", resp, err)
-	rec := make(map[string]any)
-	var out []map[string]any
-	out = append(out, rec)
+	lim := uint64(limit)
+	resp, err := pointsClient.Search(ctx, &qdrant.SearchPoints{
+		CollectionName: c.Collection,
+		Vector:         vec,
+		Limit:          lim,
+		Filter:         qfilter,
+		WithPayload:    qdrant.NewWithPayload(true),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	res := resp.GetResult()
+
+	out := make([]map[string]any, 0, len(res))
+	for _, p := range res {
+		rec := payloadToMap(p.Payload)
+		rec["_score"] = p.Score
+		rec["_id"] = p.Id.GetUuid()
+		out = append(out, rec)
+	}
+
 	return out, nil
 }
-
-/* example of filter
-filter := map[string]any{
-	"must": []map[string]any{
-		{
-			"key": "detector",
-			"match": map[string]any{"value": "PILATUS3_6M"},
-		},
-		{
-			"key": "energy_ev",
-			"range": map[string]any{"gte": 14000, "lte": 16000},
-		},
-	},
-}
-*/
 
 func (c *Client) Upsert(
 	ctx context.Context,
