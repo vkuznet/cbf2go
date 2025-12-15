@@ -20,7 +20,7 @@ import (
 	"strings"
 )
 
-func ReadCBF(path string) ([]int32, int, int, error) {
+func ReadCBF(path string, verbose int) ([]int32, int, int, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, 0, 0, err
@@ -42,7 +42,9 @@ func ReadCBF(path string) ([]int32, int, int, error) {
 	// Parse header text
 	// ------------------------------------------------------------
 	header := parseCBFHeader(headerText)
-	fmt.Println("CBF header")
+	if verbose > 0 {
+		fmt.Println("CBF header")
+	}
 	for k, v := range header {
 		fmt.Printf("%v: %v\n", k, v)
 	}
@@ -87,7 +89,9 @@ func ReadCBF(path string) ([]int32, int, int, error) {
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	fmt.Println("### first 10 pixels", pixels[:10])
+	if verbose > 0 {
+		fmt.Println("### first 10 pixels", pixels[:10])
+	}
 
 	return pixels, w, h, nil
 }

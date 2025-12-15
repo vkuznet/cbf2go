@@ -3,6 +3,8 @@ package qdrant
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"strconv"
 
 	qdrant "github.com/qdrant/go-client/qdrant"
 )
@@ -11,12 +13,39 @@ type Client struct {
 	URL          string
 	Collection   string
 	QdrantClient *qdrant.Client
+	Verbose      int
 }
 
-func NewQdrantClient(qurl, col string) (*Client, error) {
+// ParseQdrantURL parses a URL like "http://localhost:6334" and returns host and port
+func ParseQdrantURL(qurl string) (host string, port int, err error) {
+	parsed, err := url.Parse(qurl)
+	if err != nil {
+		return "", 0, fmt.Errorf("invalid URL %q: %w", qurl, err)
+	}
+
+	host = parsed.Hostname()
+	portStr := parsed.Port()
+	if portStr == "" {
+		// default port for Qdrant gRPC is 6334
+		port = 6334
+	} else {
+		port, err = strconv.Atoi(portStr)
+		if err != nil {
+			return "", 0, fmt.Errorf("invalid port %q: %w", portStr, err)
+		}
+	}
+
+	return host, port, nil
+}
+
+func NewQdrantClient(qurl, col string, verbose int) (*Client, error) {
+	host, port, err := ParseQdrantURL(qurl)
+	if err != nil {
+		return nil, err
+	}
 	qclient, err := qdrant.NewClient(&qdrant.Config{
-		Host: "localhost",
-		Port: 6334,
+		Host: host,
+		Port: port,
 	})
 	if err != nil {
 		return nil, err
@@ -26,6 +55,7 @@ func NewQdrantClient(qurl, col string) (*Client, error) {
 		URL:          qurl,
 		Collection:   col,
 		QdrantClient: qclient,
+		Verbose:      verbose,
 	}, nil
 }
 

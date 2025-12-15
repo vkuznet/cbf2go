@@ -18,7 +18,7 @@ type Server struct {
 
 func (s *Server) Register(r *gin.Engine) {
 	r.POST("/search_cbf", s.searchUpload)
-	r.GET("/search_cbf_file", s.searchFile)
+	r.GET("/search_cbf_path", s.searchFile)
 	r.POST("/hybdridsearch", s.hybridSearch)
 }
 
@@ -41,7 +41,8 @@ func (s *Server) searchFile(c *gin.Context) {
 }
 
 func (s *Server) searchPath(c *gin.Context, path string) {
-	pixels, w, h, err := cbf.ReadCBF(path)
+	// use verbose=0 for ReadCBF function call
+	pixels, w, h, err := cbf.ReadCBF(path, 0)
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
