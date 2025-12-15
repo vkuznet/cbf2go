@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 
@@ -11,7 +12,8 @@ import (
 )
 
 func main() {
-	configPath := "config.yaml" // or "config.json"
+	var configPath string
+	flag.StringVar(&configPath, "config", "config.yaml", "configuration file (yaml or JSON)")
 
 	cfg, err := LoadConfig(configPath)
 	if err != nil {
@@ -49,4 +51,3 @@ func main() {
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	r.Run(addr)
 }
-
