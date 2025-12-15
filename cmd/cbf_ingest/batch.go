@@ -4,6 +4,8 @@ import (
 	"cbf2go/internal/cbf"
 	"cbf2go/internal/embed"
 	"cbf2go/internal/qdrant"
+	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -13,11 +15,12 @@ func ingestOne(path string, clip *embed.CLIPClient, client *qdrant.Client) error
 	if err != nil {
 		panic(err)
 	}
-	//w, h = cbf.ReconcileDimensions(pixels, w, h)
 
 	vec := embed.ImageToEmbedding(pixels, w, h, 224)
 
-	err = client.Upsert(uuid.New().String(), vec, map[string]any{
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err = client.Upsert(ctx, uuid.New().String(), vec, map[string]any{
 		"path":   path,
 		"width":  w,
 		"height": h,

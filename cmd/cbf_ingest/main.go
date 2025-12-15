@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
+	"path/filepath"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -27,23 +30,34 @@ func main() {
 		panic(err)
 	}
 
-	//w, h = cbf.ReconcileDimensions(pixels, w, h)
-
 	vec := embed.ImageToEmbedding(pixels, w, h, *size)
 
-	client := &qdrant.Client{
-		URL:        *qurl,
-		Collection: *qcol,
-	}
-
-	err = client.Upsert(uuid.New().String(), vec, map[string]any{
-		"path":   *file,
-		"width":  w,
-		"height": h,
-	})
+	client, err := qdrant.NewQdrantClient(*qurl, *qcol)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println("Injected:", *file)
+	absPath, err := filepath.Abs(*file)
+	if err != nil {
+		panic(err)
+	}
+
+	payload := map[string]any{
+		"filename": filepath.Base(absPath),
+		"path":     absPath,
+		"width":    int(w),
+		"height":   int(h),
+		"method":   "pixel",
+		"engine":   "cbf2go",
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err = client.Upsert(ctx, uuid.New().String(), vec, payload)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("Injected:", absPath)
 }
