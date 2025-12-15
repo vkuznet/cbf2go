@@ -44,9 +44,9 @@ func ReadCBF(path string, verbose int) ([]int32, int, int, error) {
 	header := parseCBFHeader(headerText)
 	if verbose > 0 {
 		fmt.Println("CBF header")
-	}
-	for k, v := range header {
-		fmt.Printf("%v: %v\n", k, v)
+		for k, v := range header {
+			fmt.Printf("%v: %v\n", k, v)
+		}
 	}
 
 	// Dimensions (these ARE present in your file)

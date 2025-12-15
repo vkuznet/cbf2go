@@ -8,7 +8,6 @@ import (
 
 	qdrant "github.com/qdrant/go-client/qdrant"
 )
-
 type Client struct {
 	URL          string
 	Collection   string

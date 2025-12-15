@@ -75,7 +75,7 @@ func (c *Client) IngestOne(ctx context.Context, path string, vectorSize int) err
 		return err
 	}
 
-	vec := embed.ImageToEmbedding(pixels, w, h, vectorSize)
+	vec := embed.ImageToEmbedding(pixels, w, h, vectorSize, c.Verbose)
 
 	err = c.Upsert(ctx, uuid.New().String(), vec, map[string]any{
 		"filename": filepath.Base(absPath),

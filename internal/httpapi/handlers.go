@@ -2,7 +2,7 @@ package httpapi
 
 import (
 	"io"
-	"log"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -15,6 +15,8 @@ import (
 type Server struct {
 	Qdrant *qdrant.Client
 }
+
+var defaultSize = 224
 
 func (s *Server) Register(r *gin.Engine) {
 	r.POST("/search_cbf", s.searchUpload)
@@ -29,31 +31,39 @@ func (s *Server) searchUpload(c *gin.Context) {
 		return
 	}
 
+	size := defaultSize
+	if val, err := strconv.Atoi(c.Query("size")); err == nil {
+		size = val
+	}
+
 	tmp := "/tmp/" + uuid.New().String() + ".cbf"
 	c.SaveUploadedFile(file, tmp)
 
-	s.searchPath(c, tmp)
+	s.searchPath(c, tmp, size)
 }
 
 func (s *Server) searchFile(c *gin.Context) {
 	path := c.Query("path")
-	s.searchPath(c, path)
+	size := defaultSize
+	if val, err := strconv.Atoi(c.Query("size")); err == nil {
+		size = val
+	}
+	s.searchPath(c, path, size)
 }
 
-func (s *Server) searchPath(c *gin.Context, path string) {
+func (s *Server) searchPath(c *gin.Context, path string, size int) {
 	// use verbose=0 for ReadCBF function call
 	pixels, w, h, err := cbf.ReadCBF(path, 0)
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
-	log.Printf("qdrant search pixes=%v, w=%v h=%v", len(pixels), w, h)
-	//w, h = cbf.ReconcileDimensions(pixels, w, h)
 	//log.Printf("qdrant search pixes=%v, w=%v h=%v", len(pixels), w, h)
 
-	vec := embed.ImageToEmbedding(pixels, w, h, 224)
+	verbose := 0 // no verbose information
+	vec := embed.ImageToEmbedding(pixels, w, h, size, verbose)
 	hits, err := s.Qdrant.Search(vec, 10)
-	log.Printf("qdrant search %+v, error=%v", hits, err)
+	// log.Printf("qdrant search %+v, error=%v", hits, err)
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return

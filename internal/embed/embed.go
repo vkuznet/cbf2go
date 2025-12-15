@@ -53,7 +53,7 @@ func min(a, b int) int {
 	return b
 }
 
-func ImageToEmbedding(pixels []int32, w, h, size int) []float32 {
+func ImageToEmbedding(pixels []int32, w, h, size, verbose int) []float32 {
 	// 1) uint8 cast (matches numpy astype)
 	u8 := pixelsToUint8(pixels)
 
@@ -77,7 +77,9 @@ func ImageToEmbedding(pixels []int32, w, h, size int) []float32 {
 		vec[i] /= float32(norm)
 	}
 
-	fmt.Println("embedded vector", vec[:10], "dim", len(vec))
+	if verbose > 0 {
+		fmt.Println("embedded vector", vec[:10], "dim", len(vec))
+	}
 
 	return vec
 }
