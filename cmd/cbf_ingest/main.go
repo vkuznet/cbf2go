@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"time"
 
 	"cbf2go/internal/qdrant"
 )
@@ -24,10 +23,8 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	t0 := time.Now()
 	err = client.BatchIngest(file, nworkers, size)
 	if err != nil {
 		fmt.Println("ERROR: batch ingestion error", err)
 	}
-	fmt.Printf("Batch insgestion completed in %v", time.Since(t0))
 }
