@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -115,7 +116,12 @@ func (c *Client) BatchIngest(path string, workers int, vectorSize int) error {
 		go func() {
 			defer wg.Done()
 			for f := range jobs {
-				fmt.Println("inserting", f)
+				if strings.HasSuffix(f, c.FileExtension) {
+					fmt.Println("inserting", f)
+				} else {
+					fmt.Println("skipping", f)
+					continue
+				}
 				if err := c.IngestOne(ctx, f, vectorSize); err != nil {
 					// send error and cancel context to stop all workers
 					errs <- fmt.Errorf("file %s: %w", f, err)

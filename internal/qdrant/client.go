@@ -8,11 +8,13 @@ import (
 
 	qdrant "github.com/qdrant/go-client/qdrant"
 )
+
 type Client struct {
-	URL          string
-	Collection   string
-	QdrantClient *qdrant.Client
-	Verbose      int
+	URL           string
+	Collection    string
+	FileExtension string
+	QdrantClient  *qdrant.Client
+	Verbose       int
 }
 
 // ParseQdrantURL parses a URL like "http://localhost:6334" and returns host and port
@@ -37,7 +39,7 @@ func ParseQdrantURL(qurl string) (host string, port int, err error) {
 	return host, port, nil
 }
 
-func NewQdrantClient(qurl, col string, verbose int) (*Client, error) {
+func NewQdrantClient(qurl, col, fext string, verbose int) (*Client, error) {
 	host, port, err := ParseQdrantURL(qurl)
 	if err != nil {
 		return nil, err
@@ -51,10 +53,11 @@ func NewQdrantClient(qurl, col string, verbose int) (*Client, error) {
 	}
 
 	return &Client{
-		URL:          qurl,
-		Collection:   col,
-		QdrantClient: qclient,
-		Verbose:      verbose,
+		URL:           qurl,
+		Collection:    col,
+		QdrantClient:  qclient,
+		FileExtension: fext,
+		Verbose:       verbose,
 	}, nil
 }
 

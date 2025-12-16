@@ -29,14 +29,17 @@ func main() {
 		cfg.Server.Port = 8111
 	}
 	if cfg.Qdrant.URL == "" {
-		cfg.Qdrant.URL = "http://localhost:6334"
+		cfg.Qdrant.URL = "localhost:6334"
 	}
 	if cfg.Qdrant.Collection == "" {
 		cfg.Qdrant.Collection = "cbf_images"
 	}
+	if cfg.Qdrant.FileExtension == "" {
+		cfg.Qdrant.FileExtension = "cbf"
+	}
 
 	// Initialize Qdrant client
-	client, err := qdrant.NewQdrantClient(cfg.Qdrant.URL, cfg.Qdrant.Collection, cfg.Qdrant.Verbose)
+	client, err := qdrant.NewQdrantClient(cfg.Qdrant.URL, cfg.Qdrant.Collection, cfg.Qdrant.FileExtension, cfg.Qdrant.Verbose)
 	if err != nil {
 		log.Fatalf("failed to create qdrant client: %v", err)
 	}

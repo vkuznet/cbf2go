@@ -15,9 +15,10 @@ type Config struct {
 	} `json:"server" yaml:"server"`
 
 	Qdrant struct {
-		URL        string `json:"url" yaml:"url"`
-		Collection string `json:"collection" yaml:"collection"`
-		Verbose    int    `json:"verbose" yaml:"verbose"`
+		URL           string `json:"url" yaml:"url"`
+		Collection    string `json:"collection" yaml:"collection"`
+		FileExtension string `json:"file_extension" yaml:"file_extension"`
+		Verbose       int    `json:"verbose" yaml:"verbose"`
 	} `json:"qdrant" yaml:"qdrant"`
 }
 
