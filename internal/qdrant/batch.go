@@ -155,6 +155,6 @@ func (c *Client) BatchIngest(path string, workers int, vectorSize int) error {
 		}
 	}
 
-	fmt.Printf("Batch insgestion completed %d files in %v with %d errors", len(files), time.Since(t0), len(errs))
+	fmt.Printf("Batch insgestion completed %d files in %v\n", len(files), time.Since(t0))
 	return firstErr
 }
