@@ -64,7 +64,51 @@ func (c *Client) ensureCollection(ctx context.Context, vectorSize int) error {
 	return err
 }
 
-func (c *Client) IngestOne(ctx context.Context, path string, vectorSize int) error {
+func (c *Client) IngestViaEmbedClient(ctx context.Context, path string, vectorSize int, eurl string) error {
+
+	pixels, w, h, err := cbf.ReadCBF(path, c.Verbose)
+	if err != nil {
+		return err
+	}
+
+	if c.EmbedClient == nil {
+		c.EmbedClient = embed.NewEmbedClient(eurl)
+	}
+
+	var floatPixels []float32
+	for _, p := range pixels {
+		floatPixels = append(floatPixels, float32(p))
+	}
+
+	vec, err := c.EmbedClient.EmbedPixels(floatPixels, h, w)
+	if err != nil {
+		return err
+	}
+
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	err = c.Upsert(ctx, uuid.New().String(), vec, map[string]any{
+		"filename": filepath.Base(absPath),
+		"path":     absPath,
+		"width":    int(w),
+		"height":   int(h),
+		"method":   eurl,
+		"engine":   "cbf2go",
+	})
+
+	return err
+}
+
+func (c *Client) IngestOne(ctx context.Context, path string, vectorSize int, eurl string) error {
+	if strings.HasPrefix(eurl, "http://") || strings.HasPrefix(eurl, "https://") {
+		return c.IngestViaEmbedClient(ctx, path, vectorSize, eurl)
+	}
+	return c.IngestOneViaImageEmbedding(ctx, path, vectorSize)
+}
+
+func (c *Client) IngestOneViaImageEmbedding(ctx context.Context, path string, vectorSize int) error {
 
 	absPath, err := filepath.Abs(path)
 	if err != nil {
@@ -83,18 +127,19 @@ func (c *Client) IngestOne(ctx context.Context, path string, vectorSize int) err
 		"path":     absPath,
 		"width":    int(w),
 		"height":   int(h),
-		"method":   "pixel",
+		"method":   "image2embedding",
 		"engine":   "cbf2go",
 	})
 	return err
 }
 
-func (c *Client) BatchIngest(path string, workers int, vectorSize int) error {
+func (c *Client) BatchIngest(path string, workers int, vectorSize int, eurl string) error {
 	t0 := time.Now()
 	files, err := GetFilesFromPath(path)
 	if err != nil {
 		return err
 	}
+	fmt.Printf("Inesting %d files via %s method\n", len(files), eurl)
 
 	// set dynamic timeout interval based on number of processing files and nworkers
 	timeoutSec := len(files)/workers + 5 // +5s buffer
@@ -123,7 +168,7 @@ func (c *Client) BatchIngest(path string, workers int, vectorSize int) error {
 					fmt.Println("skipping", f)
 					continue
 				}
-				if err := c.IngestOne(ctx, f, vectorSize); err != nil {
+				if err := c.IngestOne(ctx, f, vectorSize, eurl); err != nil {
 					// send error and cancel context to stop all workers
 					errs <- fmt.Errorf("file %s: %w", f, err)
 					cancel()

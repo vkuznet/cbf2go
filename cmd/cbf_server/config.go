@@ -20,6 +20,9 @@ type Config struct {
 		FileExtension string `json:"file_extension" yaml:"file_extension"`
 		Verbose       int    `json:"verbose" yaml:"verbose"`
 	} `json:"qdrant" yaml:"qdrant"`
+	Embed struct {
+		URL string `json:"url" yaml:"url"`
+	}
 }
 
 // LoadConfig reads JSON or YAML file based on extension

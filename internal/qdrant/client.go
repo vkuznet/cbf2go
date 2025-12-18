@@ -1,6 +1,7 @@
 package qdrant
 
 import (
+	"cbf2go/internal/embed"
 	"context"
 	"fmt"
 	"net/url"
@@ -15,6 +16,7 @@ type Client struct {
 	FileExtension string
 	QdrantClient  *qdrant.Client
 	Verbose       int
+	EmbedClient   *embed.EmbedClient
 }
 
 // ParseQdrantURL parses a URL like "http://localhost:6334" and returns host and port

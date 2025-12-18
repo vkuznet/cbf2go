@@ -37,6 +37,9 @@ func main() {
 	if cfg.Qdrant.FileExtension == "" {
 		cfg.Qdrant.FileExtension = "cbf"
 	}
+	if cfg.Embed.URL == "" {
+		cfg.Embed.URL = "http://localhost:8888"
+	}
 
 	// Initialize Qdrant client
 	client, err := qdrant.NewQdrantClient(cfg.Qdrant.URL, cfg.Qdrant.Collection, cfg.Qdrant.FileExtension, cfg.Qdrant.Verbose)
@@ -47,7 +50,8 @@ func main() {
 	// Initialize Gin server
 	r := gin.Default()
 	server := &httpapi.Server{
-		Qdrant: client,
+		Qdrant:   client,
+		EmbedURL: cfg.Embed.URL,
 	}
 
 	server.Register(r)
