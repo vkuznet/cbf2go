@@ -14,7 +14,7 @@ func main() {
 	flag.StringVar(&qurl, "url", "localhost:6334", "Qdrant URL")
 	flag.StringVar(&qcol, "collection", "cbf_images", "CBF collection name")
 	flag.StringVar(&fext, "file-extension", "cbf", "CBF file extension to use")
-	flag.StringVar(&eurl, "embed-url", "image", "URL of embedding service")
+	flag.StringVar(&eurl, "embed-url", "", "URL of embedding service")
 	flag.IntVar(&size, "embed-size", 512, "embedding vector size")
 	flag.IntVar(&verbose, "verbose", 0, "verbosity level")
 	flag.IntVar(&timeoutLimit, "timeout-limit", 60, "timeout limit buffer for batch ingestion")
