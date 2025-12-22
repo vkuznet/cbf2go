@@ -133,7 +133,7 @@ func (c *Client) IngestOneViaImageEmbedding(ctx context.Context, path string, ve
 	return err
 }
 
-func (c *Client) BatchIngest(path string, workers int, vectorSize int, eurl string) error {
+func (c *Client) BatchIngest(path string, workers int, vectorSize, timeoutLimit int, eurl string) error {
 	t0 := time.Now()
 	files, err := GetFilesFromPath(path)
 	if err != nil {
@@ -142,7 +142,10 @@ func (c *Client) BatchIngest(path string, workers int, vectorSize int, eurl stri
 	fmt.Printf("Inesting %d files via %s method\n", len(files), eurl)
 
 	// set dynamic timeout interval based on number of processing files and nworkers
-	timeoutSec := len(files)/workers + 5 // +5s buffer
+	timeoutSec := len(files)/workers + 60 // +60s buffer
+	if timeoutLimit != 0 {
+		timeoutSec = len(files)/workers + timeoutLimit
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSec)*time.Second)
 	defer cancel()
 
