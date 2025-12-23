@@ -5,56 +5,43 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 
 	"cbf2go/internal/cbf"
 	"cbf2go/internal/embed"
 	"cbf2go/internal/qdrant"
 )
 
+// Server represents server struct
 type Server struct {
 	Qdrant   *qdrant.Client
 	EmbedURL string
 }
 
-// default size of embedded vector
+// default size of embedded vector and number of matches to seek
 var defaultSize = 512
+var defaultLimit = 10
 
 func (s *Server) Register(r *gin.Engine) {
-	r.POST("/search_cbf", s.searchUpload)
 	r.GET("/search_cbf_path", s.searchFile)
 	r.POST("/hybdridsearch", s.hybridSearch)
-}
-
-func (s *Server) searchUpload(c *gin.Context) {
-	file, err := c.FormFile("file")
-	if err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
-		return
-	}
-
-	// size := defaultSize
-	// if val, err := strconv.Atoi(c.Query("size")); err == nil {
-	// 	size = val
-	// }
-
-	tmp := "/tmp/" + uuid.New().String() + ".cbf"
-	c.SaveUploadedFile(file, tmp)
-
-	//s.searchPath(c, tmp, size)
 }
 
 func (s *Server) searchFile(c *gin.Context) {
 	path := c.Query("path")
 	method := c.Query("method")
+	collection := c.Query("collection")
 	size := defaultSize
 	if val, err := strconv.Atoi(c.Query("size")); err == nil {
 		size = val
 	}
-	s.searchPath(c, path, size, method)
+	limit := defaultLimit
+	if val, err := strconv.Atoi(c.Query("limit")); err == nil {
+		limit = val
+	}
+	s.searchPath(c, collection, path, method, size, limit)
 }
 
-func (s *Server) searchPath(c *gin.Context, path string, size int, method string) {
+func (s *Server) searchPath(c *gin.Context, collection, path, method string, size, limit int) {
 	// use verbose=0 for ReadCBF function call
 	pixels, w, h, err := cbf.ReadCBF(path, 0)
 	if err != nil {
@@ -81,7 +68,23 @@ func (s *Server) searchPath(c *gin.Context, path string, size int, method string
 	} else {
 		vec = embed.ImageToEmbedding(pixels, w, h, size, verbose)
 	}
-	hits, err := s.Qdrant.Search(vec, 10)
+	var hits []map[string]any
+	if collection != "" {
+		// we need to use new client with that collection
+		client, e := qdrant.NewQdrantClient(
+			s.Qdrant.URL,
+			collection,
+			s.Qdrant.FileExtension,
+			s.Qdrant.Verbose,
+		)
+		if e != nil {
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+		hits, err = client.Search(vec, 10)
+	} else {
+		hits, err = s.Qdrant.Search(vec, 10)
+	}
 	// log.Printf("qdrant search %+v, error=%v", hits, err)
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
