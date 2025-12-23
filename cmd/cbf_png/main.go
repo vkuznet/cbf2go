@@ -8,10 +8,11 @@ import (
 )
 
 func main() {
-	var fin, fout string
+	var fin, fout, format string
 	var verbose int
 	flag.StringVar(&fin, "fin", "", "CBF file")
 	flag.StringVar(&fout, "fout", "", "output file")
+	flag.StringVar(&format, "format", "color", "output PNG format: color or gray")
 	flag.IntVar(&verbose, "verbose", 0, "verbose level")
 	flag.Parse()
 
@@ -24,7 +25,11 @@ func main() {
 		panic(err)
 	}
 
-	err = cbf.WritePNG(pixels, w, h, fout)
+	if format == "gray" {
+		err = cbf.WritePNG(pixels, w, h, fout)
+	} else {
+		err = cbf.WritePNGColor(pixels, w, h, fout)
+	}
 
 	if err != nil {
 		panic(err)

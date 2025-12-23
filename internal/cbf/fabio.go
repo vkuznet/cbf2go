@@ -10,12 +10,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"image"
-	"image/color"
-	"image/png"
 	"io"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 )
@@ -254,90 +250,4 @@ func parseCBFHeader(txt string) map[string]string {
 	}
 
 	return h
-}
-
-func WritePNG(pixels []int32, w, h int, outPath string) error {
-	if len(pixels) != w*h {
-		return fmt.Errorf("pixel count mismatch: %d vs %d", len(pixels), w*h)
-	}
-
-	// ------------------------------------------------------------
-	// Convert to float64 for statistics
-	// ------------------------------------------------------------
-	n := len(pixels)
-	vals := make([]float64, n)
-	for i, v := range pixels {
-		vals[i] = float64(v)
-	}
-
-	// ------------------------------------------------------------
-	// Percentile clipping (match Python: 99.5)
-	// ------------------------------------------------------------
-	clip := 99.5
-	lo := percentile(vals, 100.0-clip)
-	hi := percentile(vals, clip)
-
-	if hi <= lo {
-		return fmt.Errorf("invalid clip range: lo=%f hi=%f", lo, hi)
-	}
-
-	// ------------------------------------------------------------
-	// Create grayscale image
-	// ------------------------------------------------------------
-	img := image.NewGray(image.Rect(0, 0, w, h))
-	scale := 255.0 / (hi - lo)
-
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			i := y*w + x
-			v := vals[i]
-
-			if v < lo {
-				v = lo
-			}
-			if v > hi {
-				v = hi
-			}
-
-			u := uint8((v - lo) * scale)
-			img.SetGray(x, y, color.Gray{Y: u})
-		}
-	}
-
-	// ------------------------------------------------------------
-	// Write PNG
-	// ------------------------------------------------------------
-	f, err := os.Create(outPath)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	return png.Encode(f, img)
-}
-
-func percentile(data []float64, p float64) float64 {
-	if len(data) == 0 {
-		return 0
-	}
-
-	cp := make([]float64, len(data))
-	copy(cp, data)
-	sort.Float64s(cp)
-
-	if p <= 0 {
-		return cp[0]
-	}
-	if p >= 100 {
-		return cp[len(cp)-1]
-	}
-
-	pos := (p / 100.0) * float64(len(cp)-1)
-	i := int(pos)
-	f := pos - float64(i)
-
-	if i+1 < len(cp) {
-		return cp[i]*(1-f) + cp[i+1]*f
-	}
-	return cp[i]
 }
