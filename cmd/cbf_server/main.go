@@ -14,6 +14,7 @@ import (
 func main() {
 	var configPath string
 	flag.StringVar(&configPath, "config", "config.yaml", "configuration file (yaml or JSON)")
+	flag.Parse()
 
 	log.Printf("Loading configuration file %s\n", configPath)
 	cfg, err := LoadConfig(configPath)
