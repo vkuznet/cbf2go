@@ -66,6 +66,22 @@ func (c *Client) ensureCollection(ctx context.Context, vectorSize int) error {
 
 func (c *Client) IngestViaEmbedClient(ctx context.Context, path string, vectorSize int, eurl string) error {
 
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+
+	filename := filepath.Base(absPath)
+
+	exists, err := c.imageAlreadyInCollection(ctx, filename)
+	if err != nil {
+		return err
+	}
+	if exists {
+		fmt.Println("skipping (already ingested):", filename)
+		return nil
+	}
+
 	pixels, w, h, err := cbf.ReadCBF(path, c.Verbose)
 	if err != nil {
 		return err
@@ -85,10 +101,6 @@ func (c *Client) IngestViaEmbedClient(ctx context.Context, path string, vectorSi
 		return err
 	}
 
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return err
-	}
 	err = c.Upsert(ctx, uuid.New().String(), vec, map[string]any{
 		"filename": filepath.Base(absPath),
 		"path":     absPath,
@@ -113,6 +125,17 @@ func (c *Client) IngestOneViaImageEmbedding(ctx context.Context, path string, ve
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return err
+	}
+
+	filename := filepath.Base(absPath)
+
+	exists, err := c.imageAlreadyInCollection(ctx, filename)
+	if err != nil {
+		return err
+	}
+	if exists {
+		fmt.Println("skipping (already ingested):", filename)
+		return nil
 	}
 
 	pixels, w, h, err := cbf.ReadCBF(path, c.Verbose)
@@ -205,4 +228,38 @@ func (c *Client) BatchIngest(path string, workers int, vectorSize, timeoutLimit 
 
 	fmt.Printf("Batch insgestion completed %d files in %v\n", len(files), time.Since(t0))
 	return firstErr
+}
+
+func (c *Client) imageAlreadyInCollection(ctx context.Context, filename string) (bool, error) {
+	limit := uint32(1)
+
+	resp, err := c.QdrantClient.GetPointsClient().Scroll(ctx, &qdrant.ScrollPoints{
+		CollectionName: c.Collection,
+		Limit:          &limit,
+		WithPayload:    qdrant.NewWithPayload(true),
+		Filter: &qdrant.Filter{
+			Must: []*qdrant.Condition{
+				{
+					ConditionOneOf: &qdrant.Condition_Field{
+						Field: &qdrant.FieldCondition{
+							Key: "filename",
+							Match: &qdrant.Match{
+								MatchValue: &qdrant.Match_Keyword{
+									Keyword: filename,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+	if c.Verbose > 0 {
+		fmt.Printf("checking %s results %+v error=%v\n", filename, resp, err)
+	}
+	if err != nil {
+		return false, err
+	}
+
+	return len(resp.Result) > 0, nil
 }
