@@ -11,6 +11,9 @@ import (
 	"cbf2go/internal/qdrant"
 )
 
+// TODO: I may introduce cache map for qdrant clients
+//       if we plan to use multiple collections it would be useful
+
 // Server represents server struct
 type Server struct {
 	Qdrant   *qdrant.Client
