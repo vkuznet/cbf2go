@@ -4,6 +4,7 @@ import (
 	"cbf2go/internal/cbf"
 	"cbf2go/internal/embed"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -46,6 +47,12 @@ func GetFilesFromPath(path string) ([]string, error) {
 }
 
 func (c *Client) ensureCollection(ctx context.Context, vectorSize int) error {
+	if c.CollectionCreated {
+		if c.Verbose > 0 {
+			fmt.Printf("Collection %s already exist", c.Collection)
+		}
+		return nil
+	}
 	_, err := c.QdrantClient.GetCollectionInfo(ctx, c.Collection)
 	if err == nil {
 		// Collection exists
@@ -61,6 +68,9 @@ func (c *Client) ensureCollection(ctx context.Context, vectorSize int) error {
 		CollectionName: c.Collection,
 		VectorsConfig:  qdrant.NewVectorsConfig(params),
 	})
+	if err == nil {
+		c.CollectionCreated = true
+	}
 	return err
 }
 
@@ -98,6 +108,12 @@ func (c *Client) IngestViaEmbedClient(ctx context.Context, path string, vectorSi
 
 	vec, err := c.EmbedClient.EmbedPixels(floatPixels, h, w)
 	if err != nil {
+		return err
+	}
+
+	// Ensure collection exists before upsert
+	if err := c.ensureCollection(ctx, len(vec)); err != nil {
+		fmt.Printf("failed to create collection: %v\n", err)
 		return err
 	}
 
@@ -144,6 +160,15 @@ func (c *Client) IngestOneViaImageEmbedding(ctx context.Context, path string, ve
 	}
 
 	vec := embed.ImageToEmbedding(pixels, w, h, vectorSize, c.Verbose)
+	if c.Verbose > 0 {
+		fmt.Printf("ImageToEmbedding return vector size: %d, width=%d height=%d\n", len(vec), w, h)
+	}
+
+	// Ensure collection exists before upsert
+	if err := c.ensureCollection(ctx, len(vec)); err != nil {
+		fmt.Printf("failed to create collection: %v\n", err)
+		return err
+	}
 
 	err = c.Upsert(ctx, uuid.New().String(), vec, map[string]any{
 		"filename": filepath.Base(absPath),
@@ -162,7 +187,11 @@ func (c *Client) BatchIngest(path string, workers int, vectorSize, timeoutLimit 
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Inesting %d files via %s method\n", len(files), eurl)
+	if eurl == "" {
+		fmt.Printf("Ingesting %d files via default image embedding method\n", len(files))
+	} else {
+		fmt.Printf("Ingesting %d files via '%s' method\n", len(files), eurl)
+	}
 
 	// set dynamic timeout interval based on number of processing files and nworkers
 	timeoutSec := len(files)/workers + 60 // +60s buffer
@@ -172,11 +201,21 @@ func (c *Client) BatchIngest(path string, workers int, vectorSize, timeoutLimit 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSec)*time.Second)
 	defer cancel()
 
-	// Ensure collection exists before upsert
-	if err := c.ensureCollection(ctx, vectorSize); err != nil {
-		fmt.Printf("failed to create collection: %v\n", err)
-		return err
+	// to ensure collection creation we need to call once IngestOne API
+	if len(files) > 0 {
+		f := files[0]
+		if err := c.IngestOne(ctx, f, vectorSize, eurl); err != nil {
+			return err
+		}
+	} else {
+		return errors.New("no files found")
 	}
+	// resize files array to use less than one file
+	if len(files) == 1 {
+		// if only one file was provided we are done
+		return nil
+	}
+	files = files[1:]
 
 	jobs := make(chan string)
 	errs := make(chan error, len(files)) // buffered for all files
@@ -231,6 +270,10 @@ func (c *Client) BatchIngest(path string, workers int, vectorSize, timeoutLimit 
 }
 
 func (c *Client) imageAlreadyInCollection(ctx context.Context, filename string) (bool, error) {
+	if !c.CollectionCreated {
+		// for first image when collection is not created we should return false
+		return false, nil
+	}
 	limit := uint32(1)
 
 	resp, err := c.QdrantClient.GetPointsClient().Scroll(ctx, &qdrant.ScrollPoints{

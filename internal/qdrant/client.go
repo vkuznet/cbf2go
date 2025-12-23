@@ -11,12 +11,13 @@ import (
 )
 
 type Client struct {
-	URL           string
-	Collection    string
-	FileExtension string
-	QdrantClient  *qdrant.Client
-	Verbose       int
-	EmbedClient   *embed.EmbedClient
+	URL               string
+	Collection        string
+	FileExtension     string
+	QdrantClient      *qdrant.Client
+	Verbose           int
+	EmbedClient       *embed.EmbedClient
+	CollectionCreated bool
 }
 
 // ParseQdrantURL parses a URL like "http://localhost:6334" and returns host and port
