@@ -84,9 +84,9 @@ func (s *Server) searchPath(c *gin.Context, collection, path, method string, siz
 			c.JSON(500, gin.H{"error": err.Error()})
 			return
 		}
-		hits, err = client.Search(vec, 10)
+		hits, err = client.Search(vec, limit)
 	} else {
-		hits, err = s.Qdrant.Search(vec, 10)
+		hits, err = s.Qdrant.Search(vec, limit)
 	}
 	// log.Printf("qdrant search %+v, error=%v", hits, err)
 	if err != nil {
