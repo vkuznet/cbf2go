@@ -15,11 +15,13 @@ func main() {
 	var configPath string
 	flag.StringVar(&configPath, "config", "config.yaml", "configuration file (yaml or JSON)")
 
+	log.Printf("Loading configuration file %s\n", configPath)
 	cfg, err := LoadConfig(configPath)
 	if err != nil {
 		log.Printf("failed to load config %q: %v, using defaults", configPath, err)
 		cfg = &Config{}
 	}
+	log.Printf("Configuration: %+v\n", cfg)
 
 	// Default values if not set
 	if cfg.Server.Host == "" {
@@ -37,9 +39,11 @@ func main() {
 	if cfg.Qdrant.FileExtension == "" {
 		cfg.Qdrant.FileExtension = "cbf"
 	}
-	if cfg.Embed.URL == "" {
-		cfg.Embed.URL = "http://localhost:8888"
-	}
+	/*
+		if cfg.Embed.URL == "" {
+			cfg.Embed.URL = "http://localhost:8888"
+		}
+	*/
 
 	// Initialize Qdrant client
 	client, err := qdrant.NewQdrantClient(cfg.Qdrant.URL, cfg.Qdrant.Collection, cfg.Qdrant.FileExtension, cfg.Qdrant.Verbose)
